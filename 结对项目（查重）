@@ -1,0 +1,625 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define OK 1
+#define ERROR 0
+
+
+typedef int Status;
+
+
+//二叉树的结点
+typedef struct TreeNode{
+	int type;//1表示操作数，2表示运算符
+    char op[20];
+	char s[20];
+	char value[10];//用于存放值，整数或真分数
+	struct TreeNode *left;//指向左孩子
+	struct TreeNode *right;//指向右孩子
+}TreeNode,*TreeList;
+
+//二叉树的数据类型
+typedef struct BiTNode{
+	TreeList root;//根结点
+	int height;//高度
+	int opNumber;//包含的运算符数量
+}BiTNode,*BiTree;
+
+//二叉树链表的数据类型
+typedef struct BiTLNode{
+    BiTree T;
+    struct BiTLNode *next;
+}BiTLNode,*BiTreeList;
+
+    /*
+    开始写函数
+    */
+
+//初始化一个二叉树链表
+BiTreeList InitBiTreeList(){
+    BiTreeList B;
+    B = (BiTLNode*)malloc(sizeof(BiTLNode));
+    if(!B)   return ERROR;
+    B->T = NULL;
+    B->next = NULL;
+    return B;
+}
+
+//把构造的二叉树插入二叉树链表
+Status InsertBiTreeList(BiTreeList &B,BiTreeList b){
+    BiTreeList p;
+    p = B;
+    if(B == NULL)   return ERROR;
+    while(p->next!=NULL)
+    {
+        p = p->next;
+    }
+    p->next = b;
+    return OK;
+}
+
+
+//初始化一棵二叉树
+BiTree InitBiTree(){
+    BiTree T;
+    T = (BiTNode*)malloc(sizeof(BiTNode));
+    if(!T)   return ERROR;
+    T->root = NULL;
+    T->height = 0;
+    T->opNumber = 0;
+    return T;
+}
+
+//创建一棵二叉树且其根结点
+Status CreateBiTree(BiTree &T,TreeList root,int number) {
+    if(!T || !root)   return ERROR;
+    T->root = root;
+    T->height = 0;
+    T->opNumber = number;
+    return OK;
+}
+
+//初始化操作数结点
+Status InitNumNode(TreeList &p) {
+    p = (TreeList)malloc(sizeof(TreeNode));
+    if(p == NULL)   return ERROR;
+    p->type = 1;
+    strcpy(p->op,"");
+    strcpy(p->s,"");
+    strcpy(p->value,"");
+    p->left = NULL;
+    p->right = NULL;
+    return OK;
+}
+
+//创建操作数结点
+Status CreateNumNode(TreeList &p, char value[20]) {
+    if(p == NULL)   return ERROR;
+    strcpy(p->value,value);
+    return OK;
+}
+
+//初始化运算符结点
+Status InitOpNode(TreeList &p) {
+    p = (TreeList)malloc(sizeof(TreeNode));
+    if(p == NULL)   return ERROR;
+    p->type = 2;
+    strcpy(p->op,"");
+    strcpy(p->s,"");
+    strcpy(p->value,"");
+    p->left = NULL;
+    p->right = NULL;
+    return OK;
+}
+
+//创建运算符结点
+Status CreateOpNode(TreeList &p, char op) {
+    if(p == NULL)   return ERROR;
+    char str[1];
+    str[0]=op;
+    strcpy(p->op,str);
+    return OK;
+}
+
+
+
+//字符串转化为int类型
+int StrToInt(char *String) {
+    int i,j,pro=1;
+    int Count = 0;       //count有可能达到10000
+    char temp;
+    char *p;
+    p = String;
+    for(j=0;j<strlen(String);j++)
+    {
+        pro*=10;    //pro初始化
+    }
+
+    for(i=0;i<strlen(String);i++)
+    {
+        temp = *p;
+        pro/= 10;
+        Count += (temp-48) * pro;
+        p++;
+    }
+    return Count;
+}
+
+//比较两个运算符的优先级，1是a与b同级或a比b高级，2是a比b低级
+int testOp(char a, char b) {
+    if(a=='+' || a=='-')
+    {
+        if(b=='*' || b=='/')
+        {
+            return 0;//a的优先级比b低,+-x/
+        }
+        else return 1;//a的优先级与b相同+-+-
+    }
+    else
+    {
+        if(b == '+' || b == '-')
+            return 2;//a是乘或除，优先级最高,*/+-
+        else return 1;//*/*/
+    }
+}
+
+//从分数结构中提取分子和分母
+int* fenToInt(char *value) {
+    int i,j,k=0,pro=1;
+    int *two;
+    int *t;
+    char temp;
+    two = (int*)malloc(sizeof(int)*2);
+
+    for(j=0;j<4;j++)
+    {
+        two[j]=0;       //多次调用时将数组清空
+    }
+
+    for(i=0;i<strlen(value);i++)
+    {
+        if(value[i]=='/')
+            break;
+    }
+    //初始化j
+    for(j=0;j<i;j++)
+    {
+        pro*=10;
+    }
+    for(i=0;i<strlen(value);i++)
+    {
+        if(value[i]=='/')   break; //此时i是有值的，下次从这个i开始即可
+        else
+        {
+            temp = value[i];
+            pro/=10;
+            two[k] += (temp-48) * pro;
+
+		}
+	}
+    k++;  //存在int数组的下一个数
+    pro = 1;
+    i = i + 1; //从除号的下一个数开始算
+    for(j=0;j<strlen(value)-i;j++)
+    {
+        pro*=10;
+    }
+    for(i;i<strlen(value);i++)
+    {
+            temp = value[i];
+            pro/=10;
+            two[k] += (temp-48) * pro;
+    }
+    t = two;
+    return t;
+}
+
+//一个整数和一个分数进行比较，返回的是2个分数，通分，这个分数是假分数
+int* oneintTotwofen(int a,char *b) {
+    int *temp = fenToInt(b);
+    int *final;
+    final = (int*)malloc(sizeof(int)*4);
+    int a1,a2;
+
+    a2 = temp[1];
+    a1 = a * a2;
+    final[0] = a1;
+    final[1] = a2;
+    final[2] = b[0];
+    final[3] = b[1];
+    return final;
+}
+
+//比较大小
+Status compare(char *Front,char *After)
+{
+    char *p1,*p2;
+    p1 = Front;
+    p2 = After;
+    int flag1 = 0,flag2 = 0;
+    while(*p1 != '\0')
+    {
+        if(*p1 == '/')
+        {
+            flag1 = 1;
+            break;
+        }
+    }
+    while(*p2 != '\0')
+    {
+        if(*p2 == '/')
+        {
+            flag2 = 1;
+            break;
+        }
+    }
+    //如果两个数都是整数且相等，则返回0
+    if(flag1 == 0 && flag2 == 0)
+    {
+        int integer1 = StrToInt(Front);
+        int integer2 = StrToInt(After);
+        if(integer1 == integer2)
+            return 0;
+    }
+    //其中一个是分数
+    if(flag1 == 0 && flag2 != 0)
+    {
+        int integer = StrToInt(Front);
+        int *temp1 = oneintTotwofen(integer,After);
+        if((temp1[0] == temp1[2]) && (temp1[1]==temp1[3]))
+            return 0;
+    }
+    if(flag1 != 0 && flag2 ==0)
+    {
+        int integer = StrToInt(After);
+        int *temp2 = oneintTotwofen(integer,Front);
+        if((temp2[0] == temp2[2]) && (temp2[1]==temp2[3]))
+            return 0;
+    }
+    //两个都是分数
+    if(flag1 == 1 && flag2 == 1)
+    {
+        int *temp1 = fenToInt(Front);
+        int *temp2 = fenToInt(After);
+        if((temp1[0] == temp1[2]) && (temp1[1]==temp1[3]))
+            return 0;
+    }
+    return 1;
+}
+
+//判断两个数的大小，真分数转化为假分数，且对两个数相减
+int judge(int num1[10],int num2[10]) {
+    int temp2;
+    temp2 = num1[1];
+    num1[0] = num1[0] * num2[1];//此时b2不变，a1改变
+    num1[1] = num1[1] * num2[1];//此时b2不变，a2改变
+    num2[0] = num2[0] * temp2;
+    num2[1] = num2[1] * temp2;
+    if(num1[0] >= num2[0])
+        return 1;    //第一个数比第二个数大
+    else return 0;//第一个数小，需要交换
+}
+
+
+
+//调整二叉树为左子树永远比右子树大
+Status AdjustTree(TreeList &root) {
+
+	if(root == NULL)   return ERROR;
+    TreeList temp;
+    temp = (TreeNode*)malloc(sizeof(TreeNode));
+    if(root->left!= NULL)
+    {
+        printf("");
+		AdjustTree(root->left);
+    }
+    if(root->right != NULL)
+    {
+        printf("");
+		AdjustTree(root->right);
+    }
+//    if(root->left->left == NULL && root->left->right == NULL)
+//	{
+//		printf(" u ");
+//       AdjustTree(root->left);
+//	 }
+    if(root->left != NULL && root->right != NULL)
+    {
+    	printf("");
+        if(judge(fenToInt(root->left->value),fenToInt(root->right->value))==0)
+
+//		if(compare(root->left->value,root->right->value)==0)
+		{
+        	printf("");
+            temp = root->right;
+            root->right = root->left;
+            root->left = temp;
+        }
+    }
+    return OK;
+}
+
+/*
+    首先每次一道题都生成一棵二叉树
+    查重部分：当新生成一道题时先与链表中已有的所有结点比较树的结构，
+    然后如果与树的结构相同再查结点值，如果不同再插入二叉树链表中，
+    最后题目是遍历二叉树所得结果
+    如果发现父节点是负号，就先将左孩子减右孩子，如果是负数，则左右孩子交换
+*/
+
+
+//打印值的函数
+Status PrintElem(char value[20],int m){
+   int i;
+   if(m == 1)
+   {
+   		for(i = 0;i<strlen(value);i++)
+   		{
+       		printf("%c",value[i]);
+  		}
+   }
+   if(m == 2)
+  {
+		printf("%c",value[0]);
+   }
+   printf(" ");
+   return OK;
+}
+
+
+//后序遍历整棵二叉树
+Status AfterOrderTraverse(TreeList T,Status (*visit)(char String[20],int i)){
+     if(NULL==T)   return OK;
+     if(ERROR==AfterOrderTraverse(T->left,visit))
+        return ERROR;
+     if(ERROR==AfterOrderTraverse(T->right,visit))
+        return ERROR;
+     if(T->type == 1)
+        return visit(T->value,1);
+     else if(T->type == 2)
+        return visit(T->op,2);
+}
+
+//把操作数和运算符构造一棵表达式二叉树,number全部用整数或分数表示
+BiTree CreateQues(char *op,char **number,int opnum,int NUM) {
+  //  TreeList n1,n2,n3,n4,o1,o2,o3;
+  	printf("\n");
+
+    TreeList *num;
+    TreeList *operation;
+    num = (TreeList*)malloc(sizeof(TreeList)*4);
+    operation = (TreeList*)malloc(sizeof(TreeList)*3);   //指向运算符结点的指针
+
+    BiTree T = InitBiTree();//建一棵二叉树，为T
+    int i,j;
+    //int numCount = sizeof(number)/sizeof(number[0]);  //获取操作数个数
+    int OpNum = opnum;//获取运算符个数
+    int numCount = NUM;
+    char *formula[20];
+  //  printf("%d,%d\n",OpNum,numCount);
+
+    TreeList p,temp,temp1;
+    /*
+        构造操作数结点
+    */
+
+    for(i=0;i<numCount;i++)   //numCount最小值是2
+    {
+        InitNumNode(num[i]);    //num[i]是二叉树结点的指针，初始化结点指针
+        CreateNumNode(num[i],number[i]);    //把值赋给num[i]指向结点的value域
+       // PrintElem(num[i]->value,1);
+    }
+
+
+
+    for(j=0;j<OpNum;j++)
+    {
+        InitOpNode(operation[j]);
+        CreateOpNode(operation[j],op[j]);
+      //  PrintElem(operation[j]->op,2);
+    }
+
+    T->root = operation[0];     //把第一个运算符作为根
+    T->root->left = num[0];  //把第一个操作数作为根的左孩子
+    T->opNumber = OpNum;
+
+    if(OpNum == 1)
+    {
+        T->root->right = num[1];
+        T->height = 2;
+    }
+
+    if(OpNum == 2)
+    {
+        if(testOp(op[0],op[1])==1 || testOp(op[0],op[1])==2)
+        {
+            temp = T->root;
+            T->root = operation[1];
+            T->root->left = temp;
+            temp->right = num[1];
+            T->root->right = num[2];
+        }
+        else if(testOp(op[0],op[1])==0)
+        {
+            T->root->right = operation[1];
+            temp = T->root->right;
+            temp->left = num[1];
+            temp->right = num[2];
+        }
+        T->height = 3;
+    }
+
+    if(OpNum == 3)
+    {
+		if(testOp(op[0],op[1])==1 || testOp(op[0],op[1])==2)
+        {
+            temp = T->root;
+            T->root = operation[1];
+            T->root->left = temp;
+            temp->right = num[1];
+            T->root->right = num[2];
+        }
+        else if(testOp(op[0],op[1])==0)
+        {
+            T->root->right = operation[1];
+            temp = T->root->right;
+            temp->left = num[1];
+            temp->right = num[2];
+        }
+        T->height = 3;
+
+
+        //判断第三个运算符
+        if(testOp(T->root->op[0],op[2])==1 || testOp(T->root->op[0],op[2])==2)
+        {
+            temp = T->root;
+            T->root = operation[2];
+            T->root->left = temp;
+            T->root->right = num[3];
+            T->height = 4;
+        }
+        else if(testOp(T->root->op[0],op[2])==0)
+        {
+            temp = T->root->right;
+            T->root->right = operation[2];
+            temp1 = T->root->right;   //即temp1指向第三个运算符结点
+            temp1->left = temp;
+            temp1->right = num[3];
+
+            if(testOp(op[0],op[1])==1 ||testOp(op[0],op[1])==2)
+            {
+                T->height = 4;
+            }
+            else if(testOp(op[0],op[1])==0)
+            {
+                T->height = 3;
+            }
+        }
+    }
+        return T;
+}
+
+
+
+
+
+//查重
+
+//比较树的结点
+int compareNode(TreeList node1,TreeList node2) {//1是不重复，0是重复 
+	if(node1->type != node2->type)
+    {
+        return 1;
+    }
+    else
+    {
+        int l=0,r=0;
+        if(node1->left != NULL && node2->left != NULL)
+        {
+            l = compareNode(node1->left,node2->left);
+        }
+        if(node1->right != NULL && node2->right != NULL)
+        {
+            r = compareNode(node1->right,node2->right);
+        }
+        int *temp1,*temp2;
+
+        if(l == 0 && r == 0 && (compare(node1->value,node2->value)==0))
+        {
+            return 0;
+        }
+        return 1;
+    }
+}
+
+int compareBiTree(BiTreeList T1,BiTreeList T2) {//1是指重复，0是指不重复 
+    //树的运算符数量不同
+    BiTree T11 = T1->T;
+    BiTree T22 = T2->T;
+    if(T11->opNumber != T22->opNumber)
+    {
+    	printf("运算符个数不同\n");
+		return 0;
+	}
+    //树的高度不同
+    if(T11->height != T22->height)
+    {
+    	printf("树的高度不同\n");
+		return 0;
+	}
+    if(compareNode(T11->root,T22->root)==1)
+	{
+        printf("树的运算符个数和高度都相同，但结点不同\n");
+        return 0;
+    }
+    return 1;
+}
+
+//每生成一道题目，则遍历一遍二叉树链表
+int TraverseBiTList(BiTreeList B,BiTreeList b) {
+	InsertBiTreeList(B,b);
+	BiTreeList p;
+	p = B->next;
+	int i = 0;
+	int number = 0;
+	while(p!=NULL)
+    {
+		int compare = compareBiTree(p,b);
+        if(compare == 1)
+        {
+			number = 1;//1表示重复
+			break; 
+		}
+        if(compare == 0)
+        	p = p->next;
+        i++;
+    }
+    return number;//0表示不重复  
+}
+
+int main() {
+    char op1[3]={'+'};
+    char *number1[10] = {"1/14","1/12"};
+    char op2[3]={'+'};
+    char *number2[10] = {"1/14","1/12"};
+
+	BiTree T1,T2;
+	
+	T1 = CreateQues(op1,number1,1,2);
+	AfterOrderTraverse(T1->root,PrintElem);
+
+	T2 = CreateQues(op2,number2,1,2);
+	printf("\n");
+	AfterOrderTraverse(T2->root,PrintElem);
+
+	printf("\n");
+	AdjustTree(T1->root);
+	AfterOrderTraverse(T1->root,PrintElem);
+
+    printf("\n");
+    AdjustTree(T2->root);
+    AfterOrderTraverse(T2->root,PrintElem);
+	
+	
+    //初始化一个二叉树链表
+	BiTreeList Que;
+	Que = InitBiTreeList();
+	
+	BiTreeList T1List,T2List;
+	T1List = InitBiTreeList();
+	T1List->T = T1;
+	
+	T2List = InitBiTreeList();
+	T2List->T = T2;
+	
+	
+	InsertBiTreeList(Que,T2List);
+	printf("\ncompare = %d\n",TraverseBiTList(Que,T1List));
+	
+
+	return 0;
+}
+
+
+
